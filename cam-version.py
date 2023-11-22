@@ -12,6 +12,7 @@ from pymongo.server_api import ServerApi
 from bson.objectid import ObjectId
 import cv2
 from pyzbar.pyzbar import decode
+from pyzbar import pyzbar
 import time
 
 uri = "mongodb+srv://mongo:Miuniversidad2023@cluster0.sfa5efq.mongodb.net/?retryWrites=true&w=majority"
@@ -68,22 +69,30 @@ class Inicio(tk.Frame):
                          text="1. Escanea el código QR \nbidimensional de tu INE", font=controller.title_font)
         label.pack(side="top", fill="x")
 
-        cam =cv2.VideoCapture(0)
-        cam.set(5,640)
-        cam.set(6,480)
+        cam = cv2.VideoCapture(0)
+        cam.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
-        camera=True
-        while camera == True:
-            suceess, frame = cam.read()
+        while True:
+            success, frame = cam.read()
 
-            for i in decode(frame):
-                print(i.type)
-                print(i.data.decode('utf-8'))
-                time.sleep(6)
+            barcodes = pyzbar.decode(frame)
 
-                cv2.imshow("QR_Scanner", frame)
-                cv2.waitKey(3)
+            for barcode in barcodes:
+                barcode_data = barcode.data.decode('utf-8')
+                barcode_type = barcode.type
 
+                print("Barcode Type:", barcode_type)
+                print("Barcode Data:", barcode_data)
+
+                # Add your desired handling or processing of the barcode data here
+
+            cv2.imshow("QR_Scanner", frame)
+            if cv2.waitKey(1) == ord('q'):
+                break
+
+        cam.release()
+        cv2.destroyAllWindows()
 
         frame = tk.Frame(self, bg="gray", width=250, height=600)
         frame.pack(side="top", fill="x")
