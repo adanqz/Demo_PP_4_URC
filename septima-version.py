@@ -24,7 +24,7 @@ class SampleApp(tk.Tk):
         tk.Tk.__init__(self, *args, **kwargs)
 
         self.title_font = tkfont.Font(family='Verdana', size=16)
-        self.geometry("400x750")
+        self.geometry("400x950")
         self.title("ParticipoMX")
         self.configure(bg="black")
         # the container is where we'll stack a bunch of frames
@@ -78,7 +78,7 @@ class Inicio(tk.Frame):
 
             for i in decode(frame):
                 print(i.type)
-                print(code.data.decode('utf-8'))
+                print(i.data.decode('utf-8'))
                 time.sleep(6)
 
                 cv2.imshow("QR_Scanner", frame)

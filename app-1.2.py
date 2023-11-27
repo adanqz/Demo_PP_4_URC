@@ -1,6 +1,8 @@
 import tkinter as tk
 from tkinter import *
 from tkinter import font as tkfont
+from tkinter import ttk
+from tkinter import messagebox
 import pymongo
 from pymongo import collection
 import requests
@@ -16,7 +18,14 @@ from PIL import Image, ImageTk
 
 
 uri = "mongodb+srv://mongo:Miuniversidad2023@cluster0.sfa5efq.mongodb.net/?retryWrites=true&w=majority"
-client = MongoClient(uri, server_api=ServerApi('1'))
+cliente_mongo = MongoClient(uri, server_api=ServerApi('1'))
+barcode_data = str()  # Variable global
+cliente = cliente_mongo
+baseDatos = cliente["padron"]
+coleccion = baseDatos["padron1"]            
+# Realiza la búsqueda en la colección usando los datos del código QR
+query = {"clave_elector": {"$regex":".*" + barcode_data + ".*"}}
+result = coleccion.find_one(query)
 
 
 class SampleApp(tk.Tk):
@@ -26,10 +35,12 @@ class SampleApp(tk.Tk):
 
         self.title_font = tkfont.Font(family='Verdana', size=16)
         self.cuerpo_font = tkfont.Font(family='Verdana', size=12)
-        self.geometry("1200x950")
+        self.geometry("500x950")
         self.title("ParticipoMX")
+        self.resizable(0,0)
         self.iconbitmap("logo.ico")
         self.configure(bg="black")
+        self.cliente_mongo = pymongo.MongoClient(uri, serverSelectionTimeOutMS=5000)
         # the container is where we'll stack a bunch of frames
         # on top of each other, then the one we want visible
         # will be raised above the others
@@ -40,34 +51,32 @@ class SampleApp(tk.Tk):
 
 
         self.frames = {}
-        for F in (Portada, Inicio, ReconocimientoFacial, ConfirmarDatos, Votar, Gracias):
+        for F in (Portada, Inicio, ConfirmarDatos, Votar, Gracias):
             page_name = F.__name__
-            frame = F(parent=container, controller=self)
+            frame = F(parent=container, controller=self, cliente_mongo=self.cliente_mongo)
             frame.configure(bg="black")
             self.frames[page_name] = frame
-
-            # put all of the pages in the same location;
-            # the one on the top of the stacking order
-            # will be the one that is visible.
             frame.grid(row=0, column=0, sticky="nsew")
 
 
         self.show_frame("Portada")
 
-
-    def show_frame(self, page_name):
-        '''Show a frame for the given page name'''
+    def show_frame(self, page_name,barcode_data=None,result=None):
         frame = self.frames[page_name]
+        frame.controller=self
+        frame.cliente_mongo=self.cliente_mongo
+        frame.barcode_data=barcode_data
+        frame.result=result
         frame.tkraise()
+        
 
-
-
-
-
+                
 class Portada(tk.Frame):
-    def __init__(self, parent, controller):
+    def __init__(self, parent, controller, cliente_mongo, barcode_data=None):
         tk.Frame.__init__(self, parent)
         self.controller = controller
+        self.cliente_mongo = cliente_mongo
+        # Resto del código de inicialización de la clase
 
         image_path = "ine-bd.jpg"  # Updated image file path
         image = ImageTk.PhotoImage(file=image_path)  # Ruta de la imagen que deseas mostrar
@@ -87,23 +96,15 @@ class Portada(tk.Frame):
 
 
         button1 = tk.Button(self, height=3, width=150, bg="purple", relief="groove", foreground="white", bd=2,
-                            padx=3, pady=3, font="Verdana", text="Comienza escaneando tu INE", command=lambda: controller.show_frame("Inicio"))
+                            padx=3, pady=3, font="Verdana", text="Comienza escaneando el QR de tu INE", command=lambda: controller.show_frame("Inicio"))
         button1.pack()
 
 
-
 class Inicio(tk.Frame):
-    def __init__(self, parent, controller):
+    def __init__(self, parent, controller, cliente_mongo):
         tk.Frame.__init__(self, parent)
         self.controller = controller
-
-        image_path = "ine-ub.jpg"  # Updated image file path
-        image = ImageTk.PhotoImage(file=image_path)  # Ruta de la imagen que deseas mostrar
-
-        label = tk.Label(self, image=image, bg="black")
-        label.image = image  # Mantén una referencia a la imagen para evitar que sea eliminada por el recolector de basura
-        label.pack(side="top")
-
+        self.cliente_mongo = cliente_mongo
 
         label = tk.Label(self, foreground="Purple", bg="black", height=3,
                          text="1. Escanea el código QR \nbidimensional de tu INE", font=controller.title_font)
@@ -112,18 +113,13 @@ class Inicio(tk.Frame):
         self.video_label = tk.Label(self)
         self.video_label.pack()
 
-        button1 = tk.Button(self, height=3, width=150, bg="purple", relief="groove", foreground="white", bd=2,
-                            padx=3, pady=3, font="Verdana", text="O acceder al >> Reconocimiento facial", command=lambda: controller.show_frame("ReconocimientoFacial"))
-        button1.pack()
-
         self.cam = cv2.VideoCapture(0)
-        self.cam.set(cv2.CAP_PROP_FRAME_WIDTH, 450)
+        self.cam.set(cv2.CAP_PROP_FRAME_WIDTH, 350)
         self.cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 450)
         self.capture_qr()
 
-
-
     def capture_qr(self):
+        global barcode_data  # Indicar que se utilizará la variable global
         success, frame = self.cam.read()
 
         if success:
@@ -131,124 +127,83 @@ class Inicio(tk.Frame):
             barcodes = pyzbar.decode(gray_frame)
             self.face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
             faces = self.face_cascade.detectMultiScale(gray_frame, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+            barcode_data=barcode_data
 
-            for (x, y, w, h) in faces:
-                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
-                face_gray = gray_frame[y:y+h,x:x+w]
-                barcodes = pyzbar.decode(face_gray)
-
+            ##for (x, y, w, h) in faces:
+                ##cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+                ##face_gray = gray_frame[y:y+h,x:x+w]
+                ##barcodes = pyzbar.decode(face_gray)
 
             for barcode in barcodes:
                 barcode_data = barcode.data.decode('utf-8')
                 barcode_type = barcode.type
-
                 print("Barcode Type:", barcode_type)
-                print("Barcode Data:", barcode_data)
+                print("Barcode Data:", barcode_data)             
+                barcode_data == barcode_data
+
+                query = {"clave_elector": {"$regex":".*" + barcode_data + ".*"}}
+                result = coleccion.find_one(query)
+                
+                if result:
+                    ##self.controller.show_frame("ConfirmarDatos", barcode_data, result)
+                    button = tk.Button(self, height=3, width=150, bg="purple", relief="groove", foreground="white", bd=2, padx=3, pady=3,
+                                    font="Verdana", text="Continuar", command=lambda: self.show_frame("Votar") if check_inputs(input_vars) else None)
+                    button.pack()
+                else:
+                    # No se encontró ningún documento que coincida con los datos del código QR
+                    print("No se encontró ningún documento para los datos del código QR")
+
 
         self.display_video(frame)
         self.video_label.after(10, self.capture_qr)
 
     def display_video(self, frame):
         image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-        image.thumbnail((450, 450))
+        image.thumbnail((350, 450))
         photo = ImageTk.PhotoImage(image)
         self.video_label.configure(image=photo)
         self.video_label.image = photo
 
 
 
-class ReconocimientoFacial(tk.Frame):
-    def __init__(self, parent, controller):
-        tk.Frame.__init__(self, parent)
-        self.controller = controller
-
-        image_path = "ine-institute.jpg"  # Updated image file path
-        image = ImageTk.PhotoImage(file=image_path)  # Ruta de la imagen que deseas mostrar
-
-        label = tk.Label(self, image=image, bg="black")
-        label.image = image  # Mantén una referencia a la imagen para evitar que sea eliminada por el recolector de basura
-        label.pack(side="top")
-
-
-        label = tk.Label(self, foreground="Purple", bg="black", height=3,
-                         text="Reconocimiento Facial", font=controller.title_font)
-        label.pack(side="top", fill="x")
-
-
-        frame = tk.Frame(self, bg="green", width=10, height=200)
-        frame.pack(side="top", fill="x")
-
-
-        button1 = tk.Button(self, height=3, width=150, bg="purple", relief="groove", foreground="white", bd=2,
-                            padx=3, pady=3, font="Verdana", text="Confirmar Datos", command=lambda: controller.show_frame("ConfirmarDatos"))
-        button1.pack()
-
-
-
-
 
 class ConfirmarDatos(tk.Frame):
-    def __init__(self, parent, controller):
+    def __init__(self, parent, controller, cliente_mongo):
         tk.Frame.__init__(self, parent)
         self.controller = controller
+        self.cliente_mongo = cliente_mongo
 
         label = tk.Label(self, foreground="Purple", bg="black", height=3,
                          text="Confirma tus datos", font=controller.title_font)
         label.pack(side="top", fill="x")
+        if result==True:
+            datos = [
+                ("NOMBRE", datos["nombre"]),
+                ("APELLIDO PATERNO", datos["apellido_paterno"]),
+                ("APELLIDO MATERNO", datos["apellido_materno"]),
+                ("FIRMA", datos["firma"]),
+                ("CLAVE ELECTOR", datos["clave_elector"]),
+                ("ENTIDAD", datos["entidad"]),
+                ("ESTADO", datos["estado"]),
+                ("SECCIÓN", datos["seccion"])
+            ]
 
-        try:
-            cliente = pymongo.MongoClient(uri, serverSelectionTimeoutMS=5000)
-            baseDatos = cliente["padron"]
-            coleccion = baseDatos["padron1"]
-            
-            documento = coleccion.find_one({"clave_elector": {"$regex": ".*\d.*73.*"}})
+            input_vars = []
 
-            if documento:
-                datos = [
-                    ("ID", documento["_id"]),
-                    ("NOMBRE", documento["nombre"]),
-                    ("APELLIDO PATERNO", documento["apellido_paterno"]),
-                    ("APELLIDO MATERNO", documento["apellido_materno"]),
-                    ("ID", documento["id"]),
-                    ("TELÉFONO", documento["telefono"]),
-                    ("HASH ACTUAL", documento["hash_actual"]),
-                    ("HASH PÚBLICO", documento["hash_publico"]),
-                    ("FIRMA", documento["firma"]),
-                    ("HASH PREVIO", documento["hash_previo"]),
-                    ("VOTADO", documento["votado"]),
-                    ("TIMESTAMP", documento["timestamp"]),
-                    ("CLAVE ELECTOR", documento["clave_elector"]),
-                    ("ENTIDAD", documento["entidad"]),
-                    ("ESTADO", documento["estado"]),
-                    ("SECCIÓN", documento["seccion"])
-                ]
+            for dato in datos:
+                label = tk.Label(self, foreground="White", bg="black", text=dato[0])
+                label.pack()
 
-                input_vars = []
+                input_var = tk.StringVar()
+                input_var.set(dato[1])
 
-                for dato in datos:
-                    label = tk.Label(self, foreground="White", bg="black", text=dato[0])
-                    label.pack()
+                entry = tk.Entry(self, textvariable=input_var)
+                entry.pack()
+                input_vars.append(input_var)
 
-                    input_var = tk.StringVar()
-                    input_var.set(dato[1])
-
-                    entry = tk.Entry(self, textvariable=input_var)
-                    entry.pack()
-                    input_vars.append(input_var)
-
-                button = tk.Button(self, height=3, width=150, bg="purple", relief="groove", foreground="white", bd=2, padx=3, pady=3,
-                                   font="Verdana", text="Continuar", command=lambda: controller.show_frame("Votar") if check_inputs(input_vars) else None)
-                button.pack()
-            else:
-                print("No se encontraron documentos en la colección")
-
-            cliente.server_info()
-            print("Conexión a MongoDB exitosa")
-            cliente.close()
-        except pymongo.errors.ServerSelectionTimeoutError as errorTiempo:
-            print("Tiempo excedido " + str(errorTiempo))
-        except pymongo.errors.ConnectionFailure as errorConexion:
-            print("Fallo al conectarse a MongoDB " + str(errorConexion))
+            button = tk.Button(self, height=3, width=150, bg="purple", relief="groove", foreground="white", bd=2, padx=3, pady=3,
+                            font="Verdana", text="Continuar", command=lambda: self.controller.show_frame("Votar") if check_inputs(input_vars) else None)
+            button.pack()
 
 def check_inputs(input_vars):
     # Verificar si todos los campos de entrada tienen valores no vacíos
@@ -259,11 +214,11 @@ def check_inputs(input_vars):
 
 
 
-
 class Votar(tk.Frame):
-    def __init__(self, parent, controller):
+    def __init__(self, parent, controller, cliente_mongo):
         tk.Frame.__init__(self, parent)
         self.controller = controller
+        self.cliente_mongo = cliente_mongo
         # Resto del código de inicialización de la clase    
         image_path = "ine-card.jpg"  # Updated image file path
         image = ImageTk.PhotoImage(file=image_path)  # Ruta de la imagen que deseas mostrar
@@ -324,7 +279,7 @@ class Votar(tk.Frame):
     def registrar_voto(self, candidato_id, controller):
         if candidato_id != "":
             try:
-                cliente = pymongo.MongoClient(uri, serverSelectionTimeoutMS=5000)
+                cliente = self.cliente_mongo
                 baseDatos = cliente["padron"]
                 coleccion = baseDatos["padron1"]
 
@@ -347,12 +302,11 @@ class Votar(tk.Frame):
 
 
 class Gracias(tk.Frame):
-
-
-    def __init__(self, parent, controller):
+    def __init__(self, parent, controller, cliente_mongo):
         tk.Frame.__init__(self, parent)
         self.controller = controller
-
+        self.cliente_mongo = cliente_mongo
+        # Resto del código de inicialización de la clase
 
         image_path = "ine-vote.jpg"  # Updated image file path
         image = ImageTk.PhotoImage(file=image_path)  # Ruta de la imagen que deseas mostrar
@@ -369,7 +323,7 @@ class Gracias(tk.Frame):
 
 
         label = tk.Label(self, foreground="White", bg="black", height=13, width=350,
-                         text="¡Gracias por votar!\n\nVoto contabilizado y vinculado al\n Presupuesto Participativo de tu comunidad\n\nIMPRESIÓN de BOLETA en alcaldía en tiempo real\n(voto encriptado: timestamp y candidato electo)\n\neyJhbGciIsInR", font=controller.cuerpo_font)
+                         text="¡Gracias por votar!\n\nVoto contabilizado y vinculado al\n Presupuesto Participativo de tu comunidad\n\nIMPRESIÓN de BOLETA en alcaldía en tiempo real\n(voto encriptado: timestamp y candidato electo)\n\neyJhbGciIs", font=controller.cuerpo_font)
         label.pack()
 
 
@@ -382,7 +336,8 @@ class Gracias(tk.Frame):
                            bd=2, padx=3, pady=3, font="Verdana", text="Cerrar", command=lambda: self.controller.destroy())
         button.pack()
 
-
+def __del__(self):
+    self.cliente_mongo.close()
 if __name__ == "__main__":
     app = SampleApp()
     app.mainloop()

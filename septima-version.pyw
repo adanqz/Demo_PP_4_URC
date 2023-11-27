@@ -12,8 +12,10 @@ from pymongo.server_api import ServerApi
 from bson.objectid import ObjectId
 import cv2
 from pyzbar.pyzbar import decode
-from pyzbar import pyzbar
 import time
+import threading
+from PIL import ImageTk, Image
+
 
 uri = "mongodb+srv://mongo:Miuniversidad2023@cluster0.sfa5efq.mongodb.net/?retryWrites=true&w=majority"
 client = MongoClient(uri, server_api=ServerApi('1'))
@@ -25,7 +27,7 @@ class SampleApp(tk.Tk):
         tk.Tk.__init__(self, *args, **kwargs)
 
         self.title_font = tkfont.Font(family='Verdana', size=16)
-        self.geometry("400x950")
+        self.geometry("400x750")
         self.title("ParticipoMX")
         self.configure(bg="black")
         # the container is where we'll stack a bunch of frames
@@ -69,32 +71,62 @@ class Inicio(tk.Frame):
                          text="1. Escanea el código QR \nbidimensional de tu INE", font=controller.title_font)
         label.pack(side="top", fill="x")
 
+    def capturarQR():
         cam = cv2.VideoCapture(0)
-        cam.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-        cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        cam.set(3, 640)  # Ancho del video
+        cam.set(4, 480)  # Alto del video
 
+        def leerQR():
+            while True:
+                success, frame = cam.read()
+
+                for qr_code in decode(frame):
+                    print(qr_code.type)
+                    print(qr_code.data.decode('utf-8'))
+                    time.sleep(6)
+
+                cv2.imshow("QR_Scanner", frame)
+                if cv2.waitKey(1) == ord('q'):
+                    break
+
+        t = threading.Thread(target=leerQR)
+        t.start()
+
+        def cerrarCamara():
+            cam.release()
+            cv2.destroyAllWindows()
+
+        self.protocol("WM_DELETE_WINDOW", cerrarCamara)
+
+    frame = tk.Frame(bg="gray", width=640, height=480)
+    frame.pack(side="top", fill="x")
+
+    canvas = tk.Canvas(frame, width=640, height=480)
+    canvas.pack()
+
+    def leerQR():
         while True:
             success, frame = cam.read()
 
-            barcodes = pyzbar.decode(frame)
+            # Convertir el marco de OpenCV a una imagen de PIL
+            imagen = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+            imagen = imagen.resize((640, 480), Image.ANTIALIAS)
+            imagen = ImageTk.PhotoImage(imagen)
 
-            for barcode in barcodes:
-                barcode_data = barcode.data.decode('utf-8')
-                barcode_type = barcode.type
+            # Actualizar el lienzo con la nueva imagen
+            canvas.create_image(0, 0, anchor=tk.NW, image=imagen)
+            canvas.image = imagen
 
-                print("Barcode Type:", barcode_type)
-                print("Barcode Data:", barcode_data)
+            for qr_code in decode(frame):
+                print(qr_code.type)
+                print(qr_code.data.decode('utf-8'))
+                time.sleep(6)
 
-
-            cv2.imshow("QR_Scanner", frame)
             if cv2.waitKey(1) == ord('q'):
                 break
 
-        cam.release()
-        cv2.destroyAllWindows()
+        cerrarCamara()
 
-        frame = tk.Frame(self, bg="gray", width=250, height=600)
-        frame.pack(side="top", fill="x")
 
         button1 = tk.Button(self, height=3, width=150, bg="purple", relief="groove", foreground="white", bd=2,
                             padx=3, pady=3, font="Verdana", text=">>>", command=lambda:controller.show_frame("ReconocimientoFacial"))

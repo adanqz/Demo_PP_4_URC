@@ -11,9 +11,11 @@ class SampleApp(tk.Tk):
         tk.Tk.__init__(self, *args, **kwargs)
 
         self.title_font = tkfont.Font(family='Verdana', size=16)
-        self.geometry("400x750")
+        self.geometry("400x950")
         self.title("ParticipoMX")
         self.configure(bg="black")
+        self.resizable(0,0)
+        self.iconbitmap("logo.ico")
         # the container is where we'll stack a bunch of frames
         # on top of each other, then the one we want visible
         # will be raised above the others
