@@ -2,14 +2,6 @@
 
 # **Voto descentralizado, encriptado, encadenado y participativo**![](https://lh7-rt.googleusercontent.com/docsz/AD_4nXdp43xD5tmyU_WewnrNjmlY5FdruU2pUJ00ngcZ0D9RyaYOTNegtobezwwfrL7Vq4xdCVpimlFcbgqu8F6mJiWXwwNYnIg3fkYYzGGQrsnQ73GIUuF_pPfUjqRVEVN8QJ4hF5aBdTlcaDVny-1GsQj4R618?key=bmTiORLivl5REObwqZ86Hw)
 
-\
-\
-\
-\
-\
-\
-\
-
 
 Licenciatura en Ciencia de Datos para Negocios
 
